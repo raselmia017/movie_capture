@@ -4,16 +4,28 @@ on:
   schedule:
     # Run every 6 hours (00:00, 06:00, 12:00, 18:00 UTC)
     - cron: '0 */6 * * *'
+    # Full refresh of ALL links on the 1st and 16th of every month (03:00 UTC = 09:00 Dhaka)
+    - cron: '0 3 1,16 * *'
   workflow_dispatch:
     inputs:
       max_pages:
         description: 'Maximum catalog pages to scrape (leave blank for all 407 pages)'
         required: false
         default: ''
+      full_refresh:
+        description: 'Re-capture links for ALL movies (ignore cache)'
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: movie-scraper
+  cancel-in-progress: false
 
 jobs:
   scrape-and-capture:
     runs-on: ubuntu-latest
+    timeout-minutes: 240
     permissions:
       contents: write
 
@@ -35,6 +47,7 @@ jobs:
       - name: Run Scraper & Link Capture
         env:
           MAX_CATALOG_PAGES: ${{ github.event.inputs.max_pages }}
+          FULL_REFRESH: ${{ github.event.schedule == '0 3 1,16 * *' || github.event.inputs.full_refresh == 'true' }}
         run: |
           python scraper.py
 
