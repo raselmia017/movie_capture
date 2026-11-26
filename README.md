@@ -3,7 +3,7 @@
 Combined automation to scrape movie catalogs, capture video stream links, extract real upload dates, and maintain a sorted, continuously updated database.
 
 ## Features
-- **Homepage First:** Top 200 trending/recently updated movies from homepage stay at the very top.
+- **Newest First:** Final output is sorted by upload date, latest at the top (movies without a date go to the bottom).
 - **Full Catalog:** Iterates all 407 pages with multi-threaded requests.
 - **Detail Link & Date Capture:** Extracts direct .mp4/.mkv video links and Uploaded: timestamps from detail pages.
 - **Incremental Caching:** Reuses previously captured video links and dates so it only fetches newly added movies.
