@@ -124,6 +124,18 @@ def fetch_detail_info(movie):
         
     return movie
 
+def parse_upload_date(value):
+    """Parse dates like '24-Sep-2026 04:20:02pm'. Returns None if unparseable."""
+    v = (value or "").strip()
+    if not v:
+        return None
+    for fmt in ("%d-%b-%Y %I:%M:%S%p", "%d-%b-%Y %I:%M%p", "%d-%b-%Y %H:%M:%S", "%d-%b-%Y"):
+        try:
+            return datetime.strptime(v.upper().replace(" PM", "PM").replace(" AM", "AM"), fmt)
+        except ValueError:
+            continue
+    return None
+
 def get_max_catalog_pages():
     html = fetch_url(MOVIES_URL)
     if not html:
@@ -258,6 +270,9 @@ def main():
     with open(CACHE_FILE, "w", encoding="utf-8") as f:
         json.dump(ordered_movies, f, ensure_ascii=False, indent=2)
     print(f"Saved {CACHE_FILE}")
+
+    # Sort newest upload first; movies without a valid date go to the bottom
+    ordered_movies.sort(key=lambda m: parse_upload_date(m.get("date")) or datetime.min, reverse=True)
 
     # Final output: only the fields the app needs
     final_movies = [{k: ("" if k in EMPTY_FIELDS else m.get(k, "")) for k in OUTPUT_FIELDS} for m in ordered_movies]
