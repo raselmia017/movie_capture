@@ -5,7 +5,7 @@ import re
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from bs4 import BeautifulSoup
 
@@ -15,7 +15,12 @@ OUTPUT_FILE = "movies.json"
 COMPAT_FILE = "output_movies.json"
 SUMMARY_FILE = "movies_summary.json"
 CACHE_FILE = "movies_cache.json"  # full data (id, details...) used only for incremental caching
-FULL_REFRESH = os.environ.get("FULL_REFRESH", "").strip().lower() in ("1", "true", "yes")
+# Manual override (workflow_dispatch "full_refresh" checkbox)
+FORCE_FULL_REFRESH = os.environ.get("FULL_REFRESH", "").strip().lower() in ("1", "true", "yes")
+# Re-capture ALL links when this many days have passed since the last full refresh
+FULL_REFRESH_DAYS = int(os.environ.get("FULL_REFRESH_DAYS") or 15)
+FULL_REFRESH = False  # decided at runtime in decide_full_refresh()
+TS_FMT = "%Y-%m-%d %H:%M:%S UTC"
 OUTPUT_FIELDS = ["title", "details", "img", "link", "date"]
 EMPTY_FIELDS = {"details"}  # kept in output but always empty
 
@@ -150,9 +155,38 @@ def get_max_catalog_pages():
             page_nums.append(int(m.group(1)))
     return max(page_nums) if page_nums else 407
 
+def decide_full_refresh(now):
+    """Returns (do_full_refresh, previous_last_full_refresh_str)."""
+    last_str = ""
+    if os.path.exists(SUMMARY_FILE):
+        try:
+            with open(SUMMARY_FILE, "r", encoding="utf-8") as f:
+                last_str = (json.load(f) or {}).get("last_full_refresh_utc", "") or ""
+        except Exception as e:
+            print(f"Could not read {SUMMARY_FILE}: {e}")
+    if FORCE_FULL_REFRESH:
+        print("Full refresh forced manually.")
+        return True, last_str
+    if not last_str:
+        # No record yet: current data is treated as fresh and today becomes the baseline
+        print(f"No last_full_refresh_utc found; starting {FULL_REFRESH_DAYS}-day countdown from now.")
+        return False, ""
+    try:
+        last = datetime.strptime(last_str, TS_FMT).replace(tzinfo=timezone.utc)
+    except ValueError:
+        print(f"Invalid last_full_refresh_utc '{last_str}'; doing full refresh.")
+        return True, last_str
+    days = (now - last).total_seconds() / 86400
+    print(f"Last full refresh: {last_str} ({days:.1f} days ago, threshold {FULL_REFRESH_DAYS} days)")
+    return days >= FULL_REFRESH_DAYS, last_str
+
 def main():
+    global FULL_REFRESH
     start_time = time.time()
     print("=== Starting Unified Movie Scraper & Link Capture ===")
+    run_now = datetime.now(timezone.utc)
+    FULL_REFRESH, prev_full_refresh = decide_full_refresh(run_now)
+    print(f"Mode: {'FULL REFRESH (all links)' if FULL_REFRESH else 'incremental (new movies only)'}")
     
     # 1. Load existing database/cache if exists
     existing_cache = {}
@@ -293,13 +327,21 @@ def main():
     print(f"Saved {COMPAT_FILE}")
 
     # Form 3: movies_summary.json (Metadata)
+    if FULL_REFRESH or not prev_full_refresh:
+        last_full_str = run_now.strftime(TS_FMT)
+    else:
+        last_full_str = prev_full_refresh
     summary = {
         "total_movies": total_count,
         "with_video_links": with_links,
         "with_dates": with_dates,
         "homepage_first_count": len(hp_movies),
-        "last_updated_utc": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
-        "duration_seconds": round(duration, 2)
+        "last_updated_utc": datetime.now(timezone.utc).strftime(TS_FMT),
+        "duration_seconds": round(duration, 2),
+        "last_run_mode": "full_refresh" if FULL_REFRESH else "incremental",
+        "last_full_refresh_utc": last_full_str,
+        "next_full_refresh_due_utc": (datetime.strptime(last_full_str, TS_FMT) + timedelta(days=FULL_REFRESH_DAYS)).strftime(TS_FMT),
+        "full_refresh_every_days": FULL_REFRESH_DAYS
     }
     with open(SUMMARY_FILE, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2)
