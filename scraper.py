@@ -15,6 +15,7 @@ OUTPUT_FILE = "movies.json"
 COMPAT_FILE = "output_movies.json"
 SUMMARY_FILE = "movies_summary.json"
 CACHE_FILE = "movies_cache.json"  # full data (id, details...) used only for incremental caching
+FULL_REFRESH = os.environ.get("FULL_REFRESH", "").strip().lower() in ("1", "true", "yes")
 OUTPUT_FIELDS = ["title", "details", "img", "link", "date"]
 EMPTY_FIELDS = {"details"}  # kept in output but always empty
 
@@ -246,10 +247,14 @@ def main():
                 m["date_source"] = cached["date_source"]
                 
         # If still missing video link or date, queue for detail page fetch
-        if not m.get("link") or not m.get("date"):
+        # Full refresh: re-capture every movie (cached values stay if a fetch fails)
+        if FULL_REFRESH or not m.get("link") or not m.get("date"):
             to_fetch_detail.append(m)
             
-    print(f"Movies needing detail page fetch (new or missing link/date): {len(to_fetch_detail)}")
+    if FULL_REFRESH:
+        print(f"FULL REFRESH mode: re-capturing links/dates for all {len(to_fetch_detail)} movies")
+    else:
+        print(f"Movies needing detail page fetch (new or missing link/date): {len(to_fetch_detail)}")
     
     # 7. Fetch detail pages in parallel
     if to_fetch_detail:
