@@ -8,8 +8,8 @@ Combined automation to scrape movie catalogs, capture video stream links, extrac
 - **Detail Link & Date Capture:** Extracts direct .mp4/.mkv video links and Uploaded: timestamps from detail pages.
 - **Incremental Caching:** Reuses previously captured video links and dates so it only fetches newly added movies.
 - **Dual Output:** 
-  - movies.json: Extended format with ID, title, thumbnails, video link, and dates.
-  - output_movies.json: Backward compatible format matching RasVibe App UI (title, details, img, date, link).
+  - movies.json / output_movies.json: Final list with only title, img, link, date.
+  - movies_cache.json: Full internal data (id, details, video_url...) used for incremental caching.
 - **GitHub Actions:** Automated run every 6 hours via .github/workflows/scrape_and_capture.yml.
 
 ## Local Usage
