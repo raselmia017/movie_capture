@@ -14,6 +14,8 @@ MOVIES_URL = f"{BASE_URL}/movies"
 OUTPUT_FILE = "movies.json"
 COMPAT_FILE = "output_movies.json"
 SUMMARY_FILE = "movies_summary.json"
+CACHE_FILE = "movies_cache.json"  # full data (id, details...) used only for incremental caching
+OUTPUT_FIELDS = ["title", "img", "link", "date"]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -140,9 +142,10 @@ def main():
     
     # 1. Load existing database/cache if exists
     existing_cache = {}
-    if os.path.exists(OUTPUT_FILE):
+    cache_source = CACHE_FILE if os.path.exists(CACHE_FILE) else OUTPUT_FILE
+    if os.path.exists(cache_source):
         try:
-            with open(OUTPUT_FILE, "r", encoding="utf-8") as f:
+            with open(cache_source, "r", encoding="utf-8") as f:
                 existing_data = json.load(f)
                 if isinstance(existing_data, list):
                     for item in existing_data:
@@ -154,9 +157,9 @@ def main():
                         mid = item.get("id") or extract_movie_id(item.get("details", ""))
                         if mid:
                             existing_cache[mid] = item
-            print(f"Loaded {len(existing_cache)} existing movies from {OUTPUT_FILE}")
+            print(f"Loaded {len(existing_cache)} existing movies from {cache_source}")
         except Exception as e:
-            print(f"Error loading {OUTPUT_FILE}: {e}")
+            print(f"Error loading {cache_source}: {e}")
             
     # 2. Scrape Homepage (Top 200 items in exact homepage order)
     print("Scraping homepage...")
@@ -250,16 +253,24 @@ def main():
     print(f"Finished in {duration:.1f}s. Total: {total_count}, Links: {with_links}, Dates: {with_dates}")
     
     # 9. Save JSON outputs
-    # Form 1: movies.json (Array of all movies)
-    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+    # Full data cache (keeps id/details so next run only fetches new movies)
+    with open(CACHE_FILE, "w", encoding="utf-8") as f:
         json.dump(ordered_movies, f, ensure_ascii=False, indent=2)
+    print(f"Saved {CACHE_FILE}")
+
+    # Final output: only the fields the app needs
+    final_movies = [{k: m.get(k, "") for k in OUTPUT_FIELDS} for m in ordered_movies]
+
+    # Form 1: movies.json
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(final_movies, f, ensure_ascii=False, indent=2)
     print(f"Saved {OUTPUT_FILE}")
-    
+
     # Form 2: output_movies.json (Identical copy for legacy URL compatibility)
     with open(COMPAT_FILE, "w", encoding="utf-8") as f:
-        json.dump(ordered_movies, f, ensure_ascii=False, indent=2)
+        json.dump(final_movies, f, ensure_ascii=False, indent=2)
     print(f"Saved {COMPAT_FILE}")
-    
+
     # Form 3: movies_summary.json (Metadata)
     summary = {
         "total_movies": total_count,
