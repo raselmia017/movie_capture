@@ -10,6 +10,7 @@ Combined automation to scrape movie catalogs, capture video stream links, extrac
 - **Dual Output:** 
   - movies.json / output_movies.json: Final list with only title, details (always empty), img, link, date.
   - movies_cache.json: Full internal data (id, details, video_url...) used for incremental caching.
+- **Full Refresh:** On the 1st and 16th of each month (or manually via the full_refresh option) every movie's link and date is re-captured from scratch.
 - **GitHub Actions:** Automated run every 6 hours via .github/workflows/scrape_and_capture.yml.
 
 ## Local Usage
