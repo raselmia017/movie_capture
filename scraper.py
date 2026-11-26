@@ -15,7 +15,8 @@ OUTPUT_FILE = "movies.json"
 COMPAT_FILE = "output_movies.json"
 SUMMARY_FILE = "movies_summary.json"
 CACHE_FILE = "movies_cache.json"  # full data (id, details...) used only for incremental caching
-OUTPUT_FIELDS = ["title", "img", "link", "date"]
+OUTPUT_FIELDS = ["title", "details", "img", "link", "date"]
+EMPTY_FIELDS = {"details"}  # kept in output but always empty
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -259,7 +260,7 @@ def main():
     print(f"Saved {CACHE_FILE}")
 
     # Final output: only the fields the app needs
-    final_movies = [{k: m.get(k, "") for k in OUTPUT_FIELDS} for m in ordered_movies]
+    final_movies = [{k: ("" if k in EMPTY_FIELDS else m.get(k, "")) for k in OUTPUT_FIELDS} for m in ordered_movies]
 
     # Form 1: movies.json
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
